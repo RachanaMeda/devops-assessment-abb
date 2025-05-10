@@ -1,0 +1,112 @@
+trigger:
+  - main
+
+resources:
+  - repo: self
+
+variables:
+  dockerRegistryServiceConnection: '6b605700-b247-49ee-93e5-84abfdd4e82c'
+  imageRepository: 'devopsassessment'
+  containerRegistry: 'rachana.azurecr.io'
+  dockerfilePath: '**/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+pool:
+  name: 'azureagent'
+
+stages:
+- stage: Build
+  displayName: Build and Push Stage
+  jobs:
+  - job: Build
+    displayName: Build and Push
+    steps:
+    - task: Docker@2
+      displayName: Build and Push an Image to ACR
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+
+- stage: TrivyScan
+  displayName: Image Security Scan (Trivy)
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: RunTrivyScan
+    displayName: Run Trivy Image Vulnerability Scan
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - script: |
+        echo "Installing Trivy..."
+        sudo apt-get update
+        sudo apt-get install wget apt-transport-https gnupg lsb-release -y
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+        sudo apt-get update
+        sudo apt-get install trivy -y
+      displayName: Install Trivy
+
+    - script: |
+        echo "Logging into ACR..."
+        az acr login --name rachana
+        echo "Running Trivy scan on image..."
+        trivy image $(containerRegistry)/$(imageRepository):$(tag) > trivy-scan-report.txt
+      displayName: Run Trivy Scan
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: 'trivy-scan-report.txt'
+        ArtifactName: 'trivy-report'
+        publishLocation: 'Container'
+      displayName: Publish Trivy Scan Report
+
+- stage: UpdateDevManifest
+  displayName: 'Update Dev Manifest'
+  dependsOn: TrivyScan
+  condition: succeeded()
+  jobs:
+  - job: UpdateDev
+    displayName: 'Update Dev Manifest File'
+    steps:
+    - checkout: self
+    - script: |
+        echo "Updating Dev manifest with new image"
+        sed -i "s|image: .*|image: $(containerRegistry)/$(imageRepository):$(tag)|g" k8s/deployment-dev.yaml
+        cat k8s/manifest-dev.yaml
+
+- stage: UpdateStagingManifest
+  displayName: 'Update Staging Manifest'
+  dependsOn: UpdateDevManifest
+  condition: succeeded()
+  jobs:
+  - job: UpdateStaging
+    displayName: 'Update Staging Manifest File'
+    steps:
+    - checkout: self
+    - script: |
+        echo "Updating Staging manifest with new image"
+        sed -i "s|image: .*|image: $(containerRegistry)/$(imageRepository):$(tag)|g" k8s/deployment-staging.yaml
+        cat k8s/manifest-staging.yaml
+
+- stage: UpdateProdManifest
+  displayName: 'Update Prod Manifest'
+  dependsOn: UpdateStagingManifest
+  condition: succeeded()
+  jobs:
+  - deployment: UpdateProd
+    displayName: 'Update Prod Manifest File'
+    environment: 'prod'  # This requires manual approval in Azure DevOps
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+          - script: |
+              echo "Updating Prod manifest with new image"
+              sed -i "s|image: .*|image: $(containerRegistry)/$(imageRepository):$(tag)|g" k8s/deployment-prod.yaml
+              cat k8s/manifest-prod.yaml
