@@ -17,6 +17,7 @@ This is a **combination of multiple key DevOps tasks** that cover the entire pip
      - **Dev**: Automatic deployment.
      - **Staging**: Automatic deployment with environment-specific configuration.
      - **Prod**: Requires **manual approval** for deployment. Please find the screenshot of gating below:
+       ![Image](https://github.com/user-attachments/assets/c1be98aa-51c9-45f8-b5b2-443db37162eb)
 
 ### 4. **Kubernetes Deployment**:
    - **Deployment** and **Service** are defined in a `manifest.yaml` file, which includes **liveness** and **readiness probes** for container health monitoring.
