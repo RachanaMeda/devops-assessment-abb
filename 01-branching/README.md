@@ -34,10 +34,16 @@ This pull request demonstrates a standard Git workflow as part of the DevOps ass
 - Added sample file `hello.txt`
 - Branching strategy is mentioned in first section of this file.
 - Below screenshots for:
-  - Pull request creation
+  - Pull request creation:
+    
+   ![Image](https://github.com/user-attachments/assets/5274fa13-ff84-4147-a31c-138b56dad098)
 
-  - Code review comment
+  - Code review comment:
+    
+   ![Image](https://github.com/user-attachments/assets/96ca8101-37f4-4a29-94cb-62b6cb9762d4)
 
-  - Merge confirmation
+  - Merge confirmation:
+    
+   ![Image](https://github.com/user-attachments/assets/1ecb53e6-9322-4d04-9db8-84a7fd5a1354)
 
 
